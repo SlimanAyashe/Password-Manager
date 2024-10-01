@@ -1,73 +1,60 @@
-from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
-from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
-from cryptography.hazmat.backends import default_backend
-from cryptography.hazmat.primitives import hashes
-import os
+from cryptography.fernet import Fernet
+import base64
+import hashlib
 
 
-# Function to derive a key from the password (fixed key length)
-def derive_key(password, salt, key_length):
-    iterations = 100000  # Fixed number of iterations
+# Generate a key for encryption and decryption
+def generate_key_from_number(number: int) -> bytes:
+    # Convert the number to a string and hash it
+    number_str = str(number).encode()  # Convert number to bytes
+    hashed = hashlib.sha256(number_str).digest()  # Hash the bytes using SHA-256
 
-    kdf = PBKDF2HMAC(
-        algorithm=hashes.SHA256(),
-        length=key_length,  # Key length: 16 for AES-128, 32 for AES-256
-        salt=salt,
-        iterations=iterations,
-        backend=default_backend()
-    )
-    return kdf.derive(password.encode())
+    # Encode the hash to a base64 URL-safe string
+    key = base64.urlsafe_b64encode(hashed[:32])  # Use the first 32 bytes
+    return key
 
 
-# Function to encrypt the password with a fixed key size
-def encrypt_password(password):
-    length = len(password)
+def encrypt_message(message: str) -> bytes:
+    """Encrypts a message using Fernet symmetric encryption."""
+    # Generate the key based on the original message length
+    cipher = Fernet(generate_key_from_number(len(message)))
+    message_bytes = message.encode()  # Convert the message to bytes
+    encrypted_message = cipher.encrypt(message_bytes)  # Encrypt the message
+
+    # Calculate the index to indicate the length of the original string modulo 9
+    length_indicator = len(message) -8
+    # Append the length indicator as a byte
+    encrypted_message += bytes([length_indicator])
+    return encrypted_message
 
 
-    # Use AES-256 (32-byte key length)
-    salt = os.urandom(16)  # Random salt
-    key = derive_key(password, salt, 32)
+def decrypt_message(encrypted_message: bytes) -> str:
+    """Decrypts an encrypted message using Fernet symmetric encryption."""
+    # Get the length indicator from the last byte of the encrypted message
+    length_indicator = encrypted_message[-1]
 
-    # Use AES encryption with CBC mode
-    iv = os.urandom(16)
-    cipher = Cipher(algorithms.AES(key), modes.CBC(iv), backend=default_backend())
-    encryptor = cipher.encryptor()
+    # Generate the key based on the original message length
+    cipher = Fernet(generate_key_from_number(length_indicator+8))
 
-    # Padding password to match block size (16 bytes for AES)
-    padded_password = password.ljust((len(password) + 15) // 16 * 16)
-    ciphertext = encryptor.update(padded_password.encode()) + encryptor.finalize()
+    # Remove the length indicator from the encrypted message
+    new_string = encrypted_message[:-1]
 
-    return salt + iv + ciphertext
-
-
-# Function to decrypt the password based on its original length
-def decrypt_password(encrypted_password, password):
-    # Extract salt and IV from the encrypted data
-    salt = encrypted_password[:16]
-    iv = encrypted_password[16:32]
-    ciphertext = encrypted_password[32:]
-
-    # Derive the same key used for encryption
-    key = derive_key(password, salt, 32)
-
-    # Decrypt with AES in CBC mode
-    cipher = Cipher(algorithms.AES(key), modes.CBC(iv), backend=default_backend())
-    decryptor = cipher.decryptor()
-
-    decrypted_padded = decryptor.update(ciphertext) + decryptor.finalize()
-    decrypted_password = decrypted_padded.decode().strip()  # Remove padding
-
-    return decrypted_password
+    # Decrypt the message
+    decrypted_message = cipher.decrypt(new_string)  # Decrypt the message
+    return decrypted_message.decode()  # Convert bytes back to string
 
 
 # Example usage
-password = "ABCDE!32aBs"  # Example password with 12 characters
-if len(password) < 8 or len(password) > 16:
-    print("Password must be between 8 and 16 characters long")
-else:
-    #encrypt
-    encrypted = encrypt_password(password)
-    print("Encrypted password:", encrypted)
-    #decrypt
-    decrypted = decrypt_password(encrypted, password)
-    print("Decrypted password:", decrypted)
+if __name__ == "__main__":
+    while True:
+        msg=input("Enter password of length 8-16\n")
+        if len(msg)<8 or len(msg)>16:
+            print("invalid length!")
+        else:
+            # Encrypt the message
+            encrypted = encrypt_message(msg)
+            print("Encrypted Message:", encrypted)
+
+            # Decrypt the message
+            decrypted = decrypt_message(encrypted)
+            print("Decrypted Message:", decrypted)
