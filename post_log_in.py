@@ -1,10 +1,18 @@
 import wx
 import os
+import json
 
 
 class PasswordManager(wx.Frame):
-    def __init__(self, *args, **kw):
+    def __init__(self, username, *args, **kw):
         super(PasswordManager, self).__init__(*args, **kw)
+
+        self.username = username
+        self.icon_folder = "icons"  # Folder to save icons
+        os.makedirs(self.icon_folder, exist_ok=True)  # Create folder if it doesn't exist
+
+        # Dictionary to store account passwords
+        self.passwords = {}
 
         self.panel = wx.Panel(self)
         self.SetTitle("Password Manager")
@@ -22,7 +30,7 @@ class PasswordManager(wx.Frame):
 
         self.save_button = wx.Button(self.panel, label="Save Account")
         self.copy_password_button = wx.Button(self.panel, label="Copy Selected Password")
-        self.remove_password_button = wx.Button(self.panel, label="Remove Selected Account")  # New button to remove the account
+        self.remove_password_button = wx.Button(self.panel, label="Remove Selected Account")
 
         # Use wx.ListCtrl to display icons and account information
         self.account_list = wx.ListCtrl(self.panel, style=wx.LC_REPORT | wx.SUNKEN_BORDER)
@@ -37,7 +45,7 @@ class PasswordManager(wx.Frame):
         self.icon_button.Bind(wx.EVT_BUTTON, self.on_browse)
         self.save_button.Bind(wx.EVT_BUTTON, self.on_save)
         self.copy_password_button.Bind(wx.EVT_BUTTON, self.on_copy_password)
-        self.remove_password_button.Bind(wx.EVT_BUTTON, self.on_remove_account)  # Bind remove button event
+        self.remove_password_button.Bind(wx.EVT_BUTTON, self.on_remove_account)
 
         # Layout
         main_sizer = wx.BoxSizer(wx.VERTICAL)
@@ -51,13 +59,37 @@ class PasswordManager(wx.Frame):
         main_sizer.Add(wx.StaticText(self.panel, label="Saved Accounts:"), 0, wx.ALL, 5)
         main_sizer.Add(self.account_list, 1, wx.ALL | wx.EXPAND, 5)
         main_sizer.Add(self.copy_password_button, 0, wx.ALL | wx.ALIGN_CENTER, 5)
-        main_sizer.Add(self.remove_password_button, 0, wx.ALL | wx.ALIGN_CENTER, 5)  # Add the remove button to layout
+        main_sizer.Add(self.remove_password_button, 0, wx.ALL | wx.ALIGN_CENTER, 5)
 
         self.panel.SetSizer(main_sizer)
-        self.SetSize((400, 550))  # Adjusted height to accommodate the new button
+        self.SetSize((400, 550))
 
-        # Dictionary to store account passwords
-        self.passwords = {}
+        # Load saved data
+        self.load_data()
+
+    def load_data(self):
+        """Load passwords and icons for the current user."""
+        try:
+            user_file = f"{self.username}_passwords.json"
+            if os.path.exists(user_file):
+                with open(user_file, 'r') as file:
+                    self.passwords = json.load(file)
+
+                # Populate the ListCtrl with the saved data
+                for account_name, details in self.passwords.items():
+                    password = details['password']
+                    icon_path = details['icon_path']
+
+                    # Load the icon and add to the image list
+                    image = wx.Image(icon_path, wx.BITMAP_TYPE_ANY)
+                    image = image.Rescale(50, 50, wx.IMAGE_QUALITY_HIGH)
+                    icon_index = self.image_list.Add(image.ConvertToBitmap())
+
+                    # Add account name to the list
+                    index = self.account_list.InsertItem(self.account_list.GetItemCount(), "", icon_index)
+                    self.account_list.SetItem(index, 1, account_name)
+        except Exception as e:
+            wx.MessageBox(f"Error loading data: {e}", "Error", wx.OK | wx.ICON_ERROR)
 
     def on_browse(self, event):
         """Open a file dialog to select an icon."""
@@ -65,7 +97,6 @@ class PasswordManager(wx.Frame):
                            style=wx.FD_OPEN | wx.FD_FILE_MUST_EXIST) as file_dialog:
             if file_dialog.ShowModal() == wx.ID_OK:
                 self.icon_path = file_dialog.GetPath()
-                #wx.MessageBox(f"Selected icon: {self.icon_path}", "Info", wx.OK | wx.ICON_INFORMATION)
 
     def on_save(self, event):
         """Save the account information to the list."""
@@ -76,25 +107,37 @@ class PasswordManager(wx.Frame):
             wx.MessageBox("Please enter both account name and password.", "Error", wx.OK | wx.ICON_ERROR)
             return
 
-        # Store the password in the dictionary
-        self.passwords[name] = password
+        # Save the account information in the dictionary
+        self.passwords[name] = {
+            'password': password,
+            'icon_path': self.icon_path  # Store the icon path
+        }
+
+        # Save to the JSON file
+        self.save_data()
 
         # Load the icon, resize it, and convert it to a bitmap
         if self.icon_path:
             image = wx.Image(self.icon_path, wx.BITMAP_TYPE_ANY)
-            image = image.Rescale(50, 50, wx.IMAGE_QUALITY_HIGH)  # Resize the image to 50x50 pixels
+            image = image.Rescale(50, 50, wx.IMAGE_QUALITY_HIGH)
             icon_index = self.image_list.Add(image.ConvertToBitmap())
         else:
             icon_index = -1  # No icon selected
 
         # Add the account info to the list control
-        index = self.account_list.InsertItem(0, "", icon_index)  # Set empty string for icon column
-        self.account_list.SetItem(index, 1, name)  # Set the account name
+        index = self.account_list.InsertItem(self.account_list.GetItemCount(), "", icon_index)
+        self.account_list.SetItem(index, 1, name)
 
         # Clear input fields
         self.name_text.Clear()
         self.password_text.Clear()
         self.icon_path = ""
+
+    def save_data(self):
+        """Save passwords and icons for the current user to a JSON file."""
+        user_file = f"{self.username}_passwords.json"
+        with open(user_file, 'w') as file:
+            json.dump(self.passwords, file)
 
     def on_copy_password(self, event):
         """Copy the password of the selected account to the clipboard."""
@@ -105,7 +148,7 @@ class PasswordManager(wx.Frame):
 
         account_name = self.account_list.GetItemText(selected_item_index, col=1)
         if account_name in self.passwords:
-            password = self.passwords[account_name]
+            password = self.passwords[account_name]['password']
             if wx.TheClipboard.Open():
                 wx.TheClipboard.SetData(wx.TextDataObject(password))
                 wx.TheClipboard.Close()
@@ -124,12 +167,14 @@ class PasswordManager(wx.Frame):
         self.account_list.DeleteItem(selected_item_index)
         if account_name in self.passwords:
             del self.passwords[account_name]
+            self.save_data()  # Save changes to file
 
         wx.MessageBox(f"Account {account_name} has been removed.", "Info", wx.OK | wx.ICON_INFORMATION)
 
 
 if __name__ == "__main__":
     app = wx.App(False)
-    frame = PasswordManager(None)
+    username = "default_user"  # Replace with actual username logic from your login
+    frame = PasswordManager(username)
     frame.Show()
     app.MainLoop()
