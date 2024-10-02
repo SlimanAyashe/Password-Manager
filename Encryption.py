@@ -18,6 +18,7 @@ def encrypt_message(message: str) -> bytes:
     """Encrypts a message using Fernet symmetric encryption."""
     # Generate the key based on the original message length
     cipher = Fernet(generate_key_from_number(len(message)))
+    print(cipher)
     message_bytes = message.encode()  # Convert the message to bytes
     encrypted_message = cipher.encrypt(message_bytes)  # Encrypt the message
 
