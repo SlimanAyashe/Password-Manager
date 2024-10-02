@@ -1,7 +1,9 @@
 import wx
 import json
 import os
-from post_log_in import PasswordManager  # Import your PasswordManager class
+import base64
+from post_log_in import PasswordManager
+from Encryption import encrypt_message,decrypt_message
 
 class LoginApp(wx.Frame):
     def __init__(self, *args, **kw):
@@ -73,24 +75,28 @@ class LoginApp(wx.Frame):
         vbox.Add(login_box, 0, wx.ALL | wx.CENTER, 20)
         panel.SetSizer(vbox)
 
-    def load_users(self):
-        """Load users from the JSON file."""
-        if os.path.exists(self.users_file):
-            with open(self.users_file, 'r') as f:
-                return json.load(f)
-        return {}
+    import base64
 
     def save_users(self):
-        """Save users to the JSON file."""
+        """Save users to the JSON file with Base64 encoded passwords."""
+        users_to_save = {user: base64.b64encode(self.users[user]).decode('utf-8') for user in self.users}
         with open(self.users_file, 'w') as f:
-            json.dump(self.users, f)
+            json.dump(users_to_save, f)
+
+    def load_users(self):
+        """Load users from the JSON file and decode Base64 passwords."""
+        if os.path.exists(self.users_file):
+            with open(self.users_file, 'r') as f:
+                users_loaded = json.load(f)
+                return {user: base64.b64decode(users_loaded[user]) for user in users_loaded}
+        return {}
 
     def on_login(self, event):
         """Check username and password when login button is clicked."""
         username = self.username_text.GetValue()
         password = self.password_text.GetValue()
 
-        if username in self.users and self.users[username] == password:
+        if username in self.users and decrypt_message(self.users[username]) == (password):
             self.Hide()
             after_log_in_screen = PasswordManager(username=username, parent=self)
             after_log_in_screen.Show()
@@ -161,9 +167,11 @@ class SignupApp(wx.Frame):
         if username in self.parent.users:
             wx.MessageBox("Username already exists. Please choose a different one.", "Error", wx.OK | wx.ICON_ERROR)
             return
-
+        if len(password) < 8 or len(password) > 16:
+            wx.MessageBox("Password length should be between 8 and 16", "Error", wx.OK | wx.ICON_ERROR)
+            return
         # Save the new user
-        self.parent.users[username] = password
+        self.parent.users[username] = (encrypt_message(password))
         self.parent.save_users()  # Save to JSON file
 
         wx.MessageBox("Signup successful! You can now log in.", "Success", wx.OK | wx.ICON_INFORMATION)

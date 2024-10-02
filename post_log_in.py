@@ -1,6 +1,10 @@
 import wx
 import os
 import json
+from Encryption import encrypt_message,decrypt_message
+from icon_selector import *
+import base64
+
 
 
 class PasswordManager(wx.Frame):
@@ -26,7 +30,7 @@ class PasswordManager(wx.Frame):
 
         self.icon_label = wx.StaticText(self.panel, label="Select Icon:")
         self.icon_button = wx.Button(self.panel, label="Browse")
-        self.icon_path = ""
+        self.icon_path = ""  # This will hold the selected icon path
 
         self.save_button = wx.Button(self.panel, label="Save Account")
         self.copy_password_button = wx.Button(self.panel, label="Copy Selected Password")
@@ -34,7 +38,7 @@ class PasswordManager(wx.Frame):
 
         # Use wx.ListCtrl to display icons and account information
         self.account_list = wx.ListCtrl(self.panel, style=wx.LC_REPORT | wx.SUNKEN_BORDER)
-        self.account_list.InsertColumn(0, "Icon", width=50)
+        self.account_list.InsertColumn(0, "Icon", width=57)
         self.account_list.InsertColumn(1, "Account Name", width=150)
 
         # Load image list for icons
@@ -70,15 +74,19 @@ class PasswordManager(wx.Frame):
     def load_data(self):
         """Load passwords and icons for the current user."""
         try:
-            user_file = f"{self.username}_passwords.json"
+            user_pass_file = f"{self.username}_passwords.json"
+            user_file = "./userData/"+user_pass_file
             if os.path.exists(user_file):
                 with open(user_file, 'r') as file:
                     self.passwords = json.load(file)
 
                 # Populate the ListCtrl with the saved data
                 for account_name, details in self.passwords.items():
-                    password = details['password']
+                    encrypted_password_base64 = details['password']
                     icon_path = details['icon_path']
+
+                    # Decode the base64 encoded password
+                    encrypted_password = base64.b64decode(encrypted_password_base64)
 
                     # Load the icon and add to the image list
                     image = wx.Image(icon_path, wx.BITMAP_TYPE_ANY)
@@ -92,11 +100,12 @@ class PasswordManager(wx.Frame):
             wx.MessageBox(f"Error loading data: {e}", "Error", wx.OK | wx.ICON_ERROR)
 
     def on_browse(self, event):
-        """Open a file dialog to select an icon."""
-        with wx.FileDialog(self, "Open Icon file", wildcard="Image files (*.jpg;*.jpeg;*.png)|*.jpg;*.jpeg;*.png",
-                           style=wx.FD_OPEN | wx.FD_FILE_MUST_EXIST) as file_dialog:
-            if file_dialog.ShowModal() == wx.ID_OK:
-                self.icon_path = file_dialog.GetPath()
+        """Open the icon selector dialog."""
+        dialog = IconSelectorDialog(self, self.icon_folder)
+        if dialog.ShowModal() == wx.ID_OK:
+            self.icon_path = dialog.get_selected_icon_path()  # Get the selected icon path
+            wx.MessageBox(f"Selected icon: {self.icon_path}", "Icon Selected", wx.OK | wx.ICON_INFORMATION)
+        dialog.Destroy()
 
     def on_save(self, event):
         """Save the account information to the list."""
@@ -106,10 +115,17 @@ class PasswordManager(wx.Frame):
         if not name or not password:
             wx.MessageBox("Please enter both account name and password.", "Error", wx.OK | wx.ICON_ERROR)
             return
+        if len(password)<8 or len(password)>16:
+            wx.MessageBox("Password length should be bewtween 8 and 16.", "Error", wx.OK | wx.ICON_ERROR)
+            return
+
+        # Encrypt the password and encode it in base64 for JSON compatibility
+        encrypted_password = encrypt_message(password)
+        encrypted_password_base64 = base64.b64encode(encrypted_password).decode('utf-8')
 
         # Save the account information in the dictionary
         self.passwords[name] = {
-            'password': password,
+            'password': encrypted_password_base64,
             'icon_path': self.icon_path  # Store the icon path
         }
 
@@ -135,7 +151,8 @@ class PasswordManager(wx.Frame):
 
     def save_data(self):
         """Save passwords and icons for the current user to a JSON file."""
-        user_file = f"{self.username}_passwords.json"
+        user_file = f"./userData/{self.username}_passwords.json"
+        os.makedirs(os.path.dirname("./userData"), exist_ok=True)
         with open(user_file, 'w') as file:
             json.dump(self.passwords, file)
 
@@ -148,9 +165,17 @@ class PasswordManager(wx.Frame):
 
         account_name = self.account_list.GetItemText(selected_item_index, col=1)
         if account_name in self.passwords:
-            password = self.passwords[account_name]['password']
+            encrypted_password_base64 = self.passwords[account_name]['password']
+
+            # Decode the base64-encoded password back to bytes
+            encrypted_password = base64.b64decode(encrypted_password_base64)
+
+            # Now decrypt the message
+            decrypted_password = decrypt_message(encrypted_password)  # This should return a str
+
+            # Copy the decrypted password to the clipboard
             if wx.TheClipboard.Open():
-                wx.TheClipboard.SetData(wx.TextDataObject(password))
+                wx.TheClipboard.SetData(wx.TextDataObject(decrypted_password))  # No need to decode
                 wx.TheClipboard.Close()
                 wx.MessageBox(f"Password for {account_name} copied to clipboard!", "Info", wx.OK | wx.ICON_INFORMATION)
 
