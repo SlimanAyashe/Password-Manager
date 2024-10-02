@@ -3,7 +3,9 @@ import base64
 import wx
 import os
 import json
-from Encryption import encrypt_message, decrypt_message
+from Encryption import encrypt_message,decrypt_message
+from icon_selector import *
+import base64
 
 
 class PasswordManager(wx.Frame):
@@ -29,7 +31,7 @@ class PasswordManager(wx.Frame):
 
         self.icon_label = wx.StaticText(self.panel, label="Select Icon:")
         self.icon_button = wx.Button(self.panel, label="Browse")
-        self.icon_path = ""
+        self.icon_path = ""  # This will hold the selected icon path
 
         self.save_button = wx.Button(self.panel, label="Save Account")
         self.copy_password_button = wx.Button(self.panel, label="Copy Selected Password")
@@ -37,7 +39,7 @@ class PasswordManager(wx.Frame):
 
         # Use wx.ListCtrl to display icons and account information
         self.account_list = wx.ListCtrl(self.panel, style=wx.LC_REPORT | wx.SUNKEN_BORDER)
-        self.account_list.InsertColumn(0, "Icon", width=50)
+        self.account_list.InsertColumn(0, "Icon", width=57)
         self.account_list.InsertColumn(1, "Account Name", width=150)
 
         # Load image list for icons
@@ -99,11 +101,12 @@ class PasswordManager(wx.Frame):
             wx.MessageBox(f"Error loading data: {e}", "Error", wx.OK | wx.ICON_ERROR)
 
     def on_browse(self, event):
-        """Open a file dialog to select an icon."""
-        with wx.FileDialog(self, "Open Icon file", wildcard="Image files (*.jpg;*.jpeg;*.png)|*.jpg;*.jpeg;*.png",
-                           style=wx.FD_OPEN | wx.FD_FILE_MUST_EXIST) as file_dialog:
-            if file_dialog.ShowModal() == wx.ID_OK:
-                self.icon_path = file_dialog.GetPath()
+        """Open the icon selector dialog."""
+        dialog = IconSelectorDialog(self, self.icon_folder)
+        if dialog.ShowModal() == wx.ID_OK:
+            self.icon_path = dialog.get_selected_icon_path()  # Get the selected icon path
+            wx.MessageBox(f"Selected icon: {self.icon_path}", "Icon Selected", wx.OK | wx.ICON_INFORMATION)
+        dialog.Destroy()
 
     import base64
 

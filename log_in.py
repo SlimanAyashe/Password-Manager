@@ -2,7 +2,12 @@ import base64
 import wx
 import json
 import os
+<<<<<<< HEAD
 from post_log_in import PasswordManager  # Import your PasswordManager class
+=======
+import base64
+from post_log_in import PasswordManager
+>>>>>>> Encryption
 from Encryption import encrypt_message,decrypt_message
 
 class LoginApp(wx.Frame):
@@ -75,7 +80,11 @@ class LoginApp(wx.Frame):
         vbox.Add(login_box, 0, wx.ALL | wx.CENTER, 20)
         panel.SetSizer(vbox)
 
+<<<<<<< HEAD
 
+=======
+    import base64
+>>>>>>> Encryption
 
     def save_users(self):
         """Save users to the JSON file with Base64 encoded passwords."""
