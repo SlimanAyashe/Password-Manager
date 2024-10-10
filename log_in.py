@@ -2,12 +2,10 @@ import base64
 import wx
 import json
 import os
-<<<<<<< HEAD
+
+from hover_button import HoverButton
 from post_log_in import PasswordManager  # Import your PasswordManager class
-=======
 import base64
-from post_log_in import PasswordManager
->>>>>>> Encryption
 from Encryption import encrypt_message,decrypt_message
 
 class LoginApp(wx.Frame):
@@ -18,26 +16,27 @@ class LoginApp(wx.Frame):
         self.users_file = "users.json"
         self.users = self.load_users()
 
-        # Setting up the frame
+        # Set up frame
         self.SetTitle("Login Screen")
         self.SetSize((550, 450))
         self.Center()
 
-        # Create panel and set background color
+        # Create panel
         panel = wx.Panel(self)
-        panel.SetBackgroundColour(wx.Colour(255, 223, 186))
+        panel.Bind(wx.EVT_ERASE_BACKGROUND, self.on_erase_background)  # Bind to custom gradient
 
         # Create a box sizer for vertical alignment
         vbox = wx.BoxSizer(wx.VERTICAL)
 
-        # Create a login box
-        login_box = wx.Panel(panel)
-        login_box.SetBackgroundColour(wx.Colour(255, 223, 186))
+        # Create a login box and set it as an instance variable
+        self.login_box = wx.Panel(panel)
+        self.login_box.SetBackgroundColour(wx.Colour(255, 223, 186))
 
         login_sizer = wx.BoxSizer(wx.VERTICAL)
+        self.login_sizer = login_sizer  # Store sizer as instance variable
 
         # Title
-        title = wx.StaticText(login_box, label="Login", style=wx.ALIGN_CENTER)
+        title = wx.StaticText(self.login_box, label="Login", style=wx.ALIGN_CENTER)
         font = title.GetFont()
         font.PointSize += 8
         font.SetWeight(wx.FONTWEIGHT_BOLD)
@@ -46,45 +45,69 @@ class LoginApp(wx.Frame):
         login_sizer.Add(title, 0, wx.ALL | wx.CENTER, 15)
 
         # Username input
-        username_label = wx.StaticText(login_box, label="Username:")
+        username_label = wx.StaticText(self.login_box, label="Username:")
         username_label.SetForegroundColour(wx.Colour(30, 144, 255))
-        self.username_text = wx.TextCtrl(login_box, size=(300, 35))
+        self.username_text = wx.TextCtrl(self.login_box, size=(300, 35))
         login_sizer.Add(username_label, 0, wx.LEFT | wx.RIGHT | wx.BOTTOM, 5)
         login_sizer.Add(self.username_text, 0, wx.ALL | wx.CENTER, 5)
 
-        # Password input
-        password_label = wx.StaticText(login_box, label="Password:")
-        password_label.SetForegroundColour(wx.Colour(30, 144, 255))
-        self.password_text = wx.TextCtrl(login_box, size=(300, 35), style=wx.TE_PASSWORD)
-        login_sizer.Add(password_label, 0, wx.LEFT | wx.RIGHT | wx.BOTTOM, 10)
-        login_sizer.Add(self.password_text, 0, wx.ALL | wx.CENTER, 5)
+        # Password input and toggle
+        self.password_text = wx.TextCtrl(self.login_box, size=(300, 35), style=wx.TE_PASSWORD)
+        self.show_password_checkbox = wx.CheckBox(self.login_box, label="Show Password")
+        self.show_password_checkbox.Bind(wx.EVT_CHECKBOX, self.on_toggle_password)
 
-        # Login button
-        login_button = wx.Button(login_box, label="Login", size=(120, 40))
-        login_button.SetBackgroundColour(wx.Colour(30, 144, 255))
-        login_button.SetForegroundColour(wx.Colour(255, 255, 255))
+        login_sizer.Add(self.password_text, 0, wx.ALL | wx.CENTER, 5)
+        login_sizer.Add(self.show_password_checkbox, 0, wx.ALL | wx.CENTER, 5)
+
+        # Replace wx.Button with HoverButton for login
+        login_button = HoverButton(self.login_box, label="Login", size=(120, 40))
         login_sizer.Add(login_button, 0, wx.ALL | wx.CENTER, 10)
         login_button.Bind(wx.EVT_BUTTON, self.on_login)
 
-        # Signup button
-        signup_button = wx.Button(login_box, label="Sign Up", size=(120, 40))
-        signup_button.SetBackgroundColour(wx.Colour(30, 144, 255))
-        signup_button.SetForegroundColour(wx.Colour(255, 255, 255))
+        # Replace wx.Button with HoverButton for sign-up
+        signup_button = HoverButton(self.login_box, label="Sign Up", size=(120, 40))
         login_sizer.Add(signup_button, 0, wx.ALL | wx.CENTER, 10)
         signup_button.Bind(wx.EVT_BUTTON, self.on_signup)
 
         # Apply the layout to the login box
-        login_box.SetSizer(login_sizer)
+        self.login_box.SetSizer(login_sizer)
 
         # Add login box to the vertical layout of the panel
-        vbox.Add(login_box, 0, wx.ALL | wx.CENTER, 20)
+        vbox.Add(self.login_box, 0, wx.ALL | wx.CENTER, 20)
         panel.SetSizer(vbox)
 
-<<<<<<< HEAD
+    def on_toggle_password(self, event):
+        """Toggle the visibility of the password."""
+        # Get the current password value
+        password_value = self.password_text.GetValue()
 
-=======
-    import base64
->>>>>>> Encryption
+        # Remove the current password TextCtrl from the sizer`
+        self.login_sizer.Remove(self.password_text)
+
+        # Determine the style based on the checkbox state
+        if self.show_password_checkbox.IsChecked():
+            # Show password (no wx.TE_PASSWORD style)
+            self.password_text = wx.TextCtrl(self.login_box, value=password_value, size=(300, 35), style=0)
+        else:
+            # Hide password (apply wx.TE_PASSWORD style)
+            self.password_text = wx.TextCtrl(self.login_box, value=password_value, size=(300, 35), style=wx.TE_PASSWORD)
+
+        # Add the new TextCtrl back to the sizer at the same position
+        self.login_sizer.Add(self.password_text, 0, wx.ALL | wx.CENTER, 5)
+
+        # Layout the panel again to reflect changes
+        self.login_box.Layout()
+
+    def on_erase_background(self, event):
+        """ Custom gradient background. """
+        dc = event.GetDC()
+        if not dc:
+            dc = wx.ClientDC(self)
+            rect = self.GetUpdateRegion().GetBox()
+            dc.SetClippingRegion(rect)
+
+        # Gradient from top (light) to bottom (dark)
+        dc.GradientFillLinear(self.GetClientRect(), wx.Colour(255, 223, 186), wx.Colour(255, 160, 122), wx.SOUTH)
 
     def save_users(self):
         """Save users to the JSON file with Base64 encoded passwords."""
@@ -105,12 +128,21 @@ class LoginApp(wx.Frame):
         username = self.username_text.GetValue()
         password = self.password_text.GetValue()
 
+        # Reset field colors
+        self.username_text.SetBackgroundColour(wx.Colour(255, 255, 255))
+        self.password_text.SetBackgroundColour(wx.Colour(255, 255, 255))
+
         if username in self.users and decrypt_message(self.users[username]) == (password):
             self.Hide()
             after_log_in_screen = PasswordManager(username=username, parent=self)
             after_log_in_screen.Show()
         else:
             wx.MessageBox("Invalid username or password.", "Error", wx.OK | wx.ICON_ERROR)
+            # Highlight fields in red if incorrect
+            self.username_text.SetBackgroundColour(wx.Colour(255, 204, 203))
+            self.password_text.SetBackgroundColour(wx.Colour(255, 204, 203))
+            self.username_text.Refresh()
+            self.password_text.Refresh()
 
     def on_signup(self, event):
         """Open the signup window."""
